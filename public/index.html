@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#1E82E6">
+<link rel="manifest" href="/manifest.json">
+<title>Visiophone</title>
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <div id="app">
+    <!-- ACCUEIL -->
+    <section class="page active" id="page-home">
+      <header class="hdr">
+        <div class="hdr-top">
+          <span class="hdr-icon">&#9737;</span>
+          <h1>RESIDENCE DE GOOBIE</h1>
+        </div>
+        <div class="hdr-sub">Controle d'acces &amp; visiophonie</div>
+      </header>
+      <div class="addr-bar">12 Rue de la Paix, 75001 Paris</div>
+      <div class="scroll">
+        <div class="card status">
+          <span class="dot ok"></span>
+          <div class="grow">
+            <div class="t1">Portail connecte</div>
+            <div class="t2">Systeme actif et operationnel</div>
+          </div>
+        </div>
+        <div class="sec-label">Ma residence</div>
+        <div class="card">
+          <div class="row">
+            <div class="ic-box"><span>&#127968;</span></div>
+            <div class="grow">
+              <div class="t1">Appartement</div>
+              <div class="t2" id="home-apt">non defini</div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="ic-box"><span>&#128205;</span></div>
+            <div class="grow">
+              <div class="t1">Etage</div>
+              <div class="t2" id="home-floor">&mdash;</div>
+            </div>
+          </div>
+        </div>
+        <button class="btn-unlock" id="btn-unlock">
+          <span class="lock-ic">&#128274;</span>
+          <div>
+            <div class="t1 white">Deverrouiller le portail</div>
+            <div class="t2 white-soft">Appuyez pour ouvrir</div>
+          </div>
+        </button>
+      </div>
+    </section>
+
+    <!-- CAMERA (iframe vers la page WebRTC existante) -->
+    <section class="page" id="page-camera">
+      <iframe id="cam-frame" src="/legacy" title="Camera"></iframe>
+    </section>
+
+    <!-- HISTORIQUE -->
+    <section class="page" id="page-history">
+      <header class="hdr">
+        <div class="hdr-top">
+          <span class="hdr-icon">&#8635;</span>
+          <h1>Historique</h1>
+        </div>
+        <div class="hdr-sub">Acces et evenements recents</div>
+      </header>
+      <div class="scroll">
+        <div class="empty">
+          <div class="empty-ic">&#8635;</div>
+          <div class="t1">Aucun historique</div>
+          <div class="t2">Generez un code ou ouvrez le portail</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PROFIL -->
+    <section class="page" id="page-profile">
+      <header class="hdr">
+        <div class="hdr-top">
+          <span class="hdr-icon">&#128100;</span>
+          <h1>Profil</h1>
+        </div>
+        <div class="hdr-sub">Parametres du visiophone</div>
+      </header>
+      <div class="scroll">
+        <div class="sec-label">Mon appartement</div>
+        <div class="card">
+          <div class="apt-row">
+            <div class="ic-box"><span>&#127968;</span></div>
+            <div class="grow">
+              <div class="t1">Appartement</div>
+              <div class="t2"><b id="apt-name">non defini</b></div>
+            </div>
+            <button class="apt-change-btn" id="apt-change">Changer</button>
+          </div>
+        </div>
+        <div class="sec-label">Compte</div>
+        <div class="card"><div class="t1">Mon Visiophone</div><div class="t2">Gestionnaire de portail</div></div>
+        <div class="sec-label">Systeme</div>
+        <div class="card"><div class="t1">Version</div><div class="t2">Visiophone v1.0</div></div>
+      </div>
+    </section>
+  </div>
+
+
+  <!-- Pop-up d'appel entrant -->
+  <div id="ring-overlay" class="ring-overlay hidden">
+    <div class="ring-card">
+      <div class="ring-ic">&#128276;</div>
+      <div class="ring-title">Quelqu'un sonne</div>
+      <div class="ring-sub" id="ring-sub">a la porte</div>
+      <div class="ring-actions">
+        <button class="ring-btn deny" id="ring-deny">Refuser</button>
+        <button class="ring-btn accept" id="ring-accept">Repondre</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal choix appartement -->
+  <div id="apt-modal" class="ring-overlay hidden">
+    <div class="ring-card">
+      <div class="ring-title">Quel appartement ?</div>
+      <div id="apt-list" class="apt-list"></div>
+    </div>
+  </div>
+
+  <!-- NAVIGATION -->
+  <nav class="tabbar">
+    <button class="tab active" data-page="home"><span>&#8962;</span><label>Accueil</label></button>
+    <button class="tab" data-page="camera"><span>&#9673;</span><label>Camera</label></button>
+    <button class="tab" data-page="history"><span>&#8635;</span><label>Historique</label></button>
+    <button class="tab" data-page="profile"><span>&#128100;</span><label>Profil</label></button>
+  </nav>
+
+  <script src="/home.js"></script>
+  <script>
+    const tabs = document.querySelectorAll('.tab');
+    const pages = document.querySelectorAll('.page');
+    tabs.forEach(tab => tab.addEventListener('click', () => {
+      const id = tab.dataset.page;
+      tabs.forEach(t => t.classList.toggle('active', t === tab));
+      pages.forEach(p => p.classList.toggle('active', p.id === 'page-' + id));
+    }));
+  </script>
+</body>
+</html>
