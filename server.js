@@ -810,7 +810,15 @@ async function setupPeerConnection() {
   state.pc = new RTCPeerConnection({
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'turn:global.relay.metered.ca:443',
+        username: 'cd124ba56cf32293ac39030f',
+        credential: 'JosiJksWNXiItfgm' },
+      { urls: 'turn:global.relay.metered.ca:443?transport=tcp',
+        username: 'cd124ba56cf32293ac39030f',
+        credential: 'JosiJksWNXiItfgm' },
+      { urls: 'turns:global.relay.metered.ca:443?transport=tcp',
+        username: 'cd124ba56cf32293ac39030f',
+        credential: 'JosiJksWNXiItfgm' },
     ],
   });
 
