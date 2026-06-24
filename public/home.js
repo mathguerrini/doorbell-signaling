@@ -165,50 +165,92 @@
     });
   }
 
-// ─── Gestion de l'abonnement aux notifications Push ───
+// ─── Gestion et Diagnostic des Notifications Push (Spécial iPhone) ───
   function registerPushNotification() {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !myApt) return;
+    // Vérification des prérequis d'Apple
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      alert("⚠️ Erreur : Les notifications ne sont pas supportées. Vérifiez que vous avez bien lancé l'application depuis l'ÉCRAN D'ACCUEIL et non depuis Safari !");
+      return;
+    }
+    if (!myApt) {
+      alert("⚠️ Erreur : Veuillez d'abord sélectionner un appartement dans l'application.");
+      return;
+    }
 
-    navigator.serviceWorker.ready.then(function(reg) {
-      // 1. Récupérer la clé publique VAPID du serveur Render
+    alert("🚀 Étape 1 : Demande de permission à l'iPhone...");
+    
+    Notification.requestPermission().then(function(permission) {
+      alert("📋 Permission accordée par l'utilisateur ? " + permission);
+      if (permission !== 'granted') return;
+
+      alert("🌐 Étape 2 : Récupération de la clé VAPID depuis Render...");
+      
       fetch('/api/vapid')
-        .then(res => res.json())
+        .then(res => {
+          if (!res.ok) throw new Error("Le serveur Render a renvoyé une erreur " + res.status);
+          return res.json();
+        })
         .then(config => {
-          if (!config.publicKey) return;
+          alert("🔑 Clé VAPID reçue avec succès !");
+          if (!config.publicKey) {
+            alert("⚠️ Erreur : La clé publique reçue est vide.");
+            return;
+          }
 
-          // Convertir la clé VAPID String en format Array exigé par le navigateur
+          // Conversion de la clé pour le protocole de l'iPhone
           const padding = '='.repeat((4 - config.publicKey.length % 4) % 4);
           const base64 = (config.publicKey + padding).replace(/\-/g, '+').replace(/_/g, '/');
           const rawData = window.atob(base64);
           const outputArray = new Uint8Array(rawData.length);
           for (let i = 0; i < rawData.length; ++i) { outputArray[i] = rawData.charCodeAt(i); }
 
-          // 2. Demander l'autorisation à l'iPhone et créer l'abonnement
-          return reg.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: outputArray
+          alert("📱 Étape 3 : Création de l'abonnement auprès d'Apple Push (APNs)...");
+          
+          return navigator.serviceWorker.ready.then(function(reg) {
+            return reg.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: outputArray
+            });
           });
         })
         .then(function(sub) {
-          if (!sub) return;
-
-          // 3. Envoyer l'abonnement à ton API Render avec l'appartement lié
+          if (!sub) {
+            alert("⚠️ Échec : Aucun identifiant de souscription n'a été généré.");
+            return;
+          }
+          
+          alert("📡 Étape 4 : Envoi du token de l'iPhone à ton serveur Render...");
+          
           return fetch('/api/subscribe', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ subscription: sub, apt: myApt })
           });
         })
-        .then(() => console.log('iPhone synchronisé avec le serveur pour les notifications Push !'))
-        .catch(err => console.error('Erreur lors de l\'enregistrement Push:', err));
+        .then(res => {
+          if (!res.ok) throw new Error("Le serveur Render a refusé l'enregistrement HTTP " + res.status);
+          alert("🎉 SUCCÈS TOTAL ! Votre iPhone est lié à l'appartement " + myApt + ". Vous pouvez fermer l'app et tester la sonnette !");
+        })
+        .catch(err => {
+          alert('❌ ERREUR CRITIQUE : ' + err.message);
+          console.error(err);
+        });
     });
   }
 
-  // Activer le Service Worker au démarrage
+  // Activer le Service Worker et lier le clic du bouton
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function() {
       navigator.serviceWorker.register('/sw.js').then(function() {
-        if (myApt) registerPushNotification();
+        console.log("Service worker OK");
+        
+        // Attacher l'événement au bouton qu'on a créé
+        var btnPush = document.getElementById('btn-activate-push');
+        if (btnPush) {
+          btnPush.addEventListener('click', function() {
+            registerPushNotification();
+          });
+        }
       });
     });
   }
