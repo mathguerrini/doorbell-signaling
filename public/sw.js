@@ -32,35 +32,34 @@ self.addEventListener('push', (event) => {
 
 // Action quand l'utilisateur interagit avec la notification ou les boutons
 self.addEventListener('notificationclick', (event) => {
-  event.notification.close(); // Ferme la notification
-  
+  event.notification.close();
   const room = event.notification.data ? event.notification.data.room : '';
-  
+
   if (event.action === 'deny') {
-    console.log("L'utilisateur a refusé l'appel.");
-    return;
+    return; // refus, on ne fait rien
   }
 
-  // On cible explicitement /index.html pour correspondre au manifest.json de l'iPhone
-  const urlToOpen = room ? `/index.html?room=${encodeURIComponent(room)}&action=accept` : '/index.html';
+  // Bouton "Répondre" => acceptation directe
+  // Tap sur le corps => ouvrir l'app SANS accepter (laisse le pop-up s'afficher)
+  var urlToOpen;
+  if (event.action === 'accept') {
+    urlToOpen = room ? `/index.html?room=${encodeURIComponent(room)}&action=accept` : '/index.html';
+  } else {
+    urlToOpen = '/index.html'; // tap sur le corps : pas d'auto-accept
+  }
 
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      // 1. Si l'application est déjà ouverte en tâche de fond
+    clients.matchAll({ type:'window', includeUncontrolled:true }).then((windowClients) => {
       for (let client of windowClients) {
         if (client.url.includes(location.origin) && 'focus' in client) {
           return client.focus().then(() => {
-            // Appels de diagnostic direct vers l'application (Infaillible sur iOS)
-            if ('postMessage' in client) {
-              client.postMessage({
-                type: 'NOTIFICATION_ACCEPT',
-                room: room
-              });
+            if (event.action === 'accept' && 'postMessage' in client) {
+              client.postMessage({ type:'NOTIFICATION_ACCEPT', room: room });
             }
+            // si tap sur le corps : focus seulement, le pop-up ring s'affichera via le WS
           });
         }
       }
-      // 2. Si l'application était complètement fermée, on l'ouvre proprement
       if (clients.openWindow) return clients.openWindow(urlToOpen);
     })
   );
