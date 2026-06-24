@@ -7,6 +7,7 @@
   // ─── Etat ───
   var myApt = localStorage.getItem('myApt') || null;
   var pendingRoom = null;  // room video recue dans le ring
+  var activeCallRoom = null; // SÉCURITÉ : stocke la room en cours pour bloquer les popups intrusifs
 
   // Bip de confirmation "porte ouverte"
   function playOpenChime(){
@@ -56,38 +57,59 @@
 
   // ─── Appel entrant ───
   function onRing(msg){
-    // Est-ce pour moi ?
     if (!myApt || msg.apt !== myApt) return;
+
+    // 🛡️ VERROU DE SÉCURITÉ : Si on est déjà en train de regarder cette caméra via l'auto-décrochage,
+    // on ignore complètement le signal de sonnette pour éviter que le pop-up ne revienne à l'écran.
+    if (activeCallRoom === msg.room) return;
+
     pendingRoom = msg.room || null;
     ringSub.textContent = 'Appartement ' + msg.apt;
     ringOverlay.classList.remove('hidden');
-    // Vibration si supportee
     if (navigator.vibrate) navigator.vibrate([400,200,400]);
   }
 
   $('ring-deny').addEventListener('click', function(){
     ringOverlay.classList.add('hidden');
+    activeCallRoom = null;
     if (navigator.vibrate) navigator.vibrate(0);
-    // Prevenir la carte que l'appel est refuse (broadcast)
     if (ws && wsReady) ws.send(JSON.stringify({ type:'ring_deny', apt: myApt, room: pendingRoom }));
   });
 
   $('ring-accept').addEventListener('click', function(){
     ringOverlay.classList.add('hidden');
     if (navigator.vibrate) navigator.vibrate(0);
-    // Basculer vers l'onglet Camera pour repondre
-    var camTab = document.querySelector('.tab[data-page="camera"]');
-    if (camTab) camTab.click();
-    // Transmettre la room video a l'iframe camera (etape suivante)
-    var frame = $('cam-frame');
-    if (frame && pendingRoom) {
-      // On rechargera l'iframe avec la room en parametre a l'etape WebRTC
-      frame.src = '/legacy?room=' + encodeURIComponent(pendingRoom) + '&autojoin=1';
-    }
+    autoAcceptCall(pendingRoom);
   });
 
+  // ─── Fonction d'auto-décrochage unifiée ───
+  function autoAcceptCall(room) {
+    if (!room) return;
+    
+    // Activer le verrou
+    activeCallRoom = room;
+
+    // Fermer le pop-up s'il est ouvert
+    if (ringOverlay) ringOverlay.classList.add('hidden');
+
+    // 1. Basculer visuellement sur l'onglet Caméra
+    var camTab = document.querySelector('.tab[data-page="camera"]');
+    var allTabs = document.querySelectorAll('.tab');
+    var allPages = document.querySelectorAll('.page');
+    
+    if (camTab) {
+      allTabs.forEach(function(t) { t.classList.toggle('active', t === camTab); });
+      allPages.forEach(function(p) { p.classList.toggle('active', p.id === 'page-camera'); });
+    }
+    
+    // 2. Brancher l'iframe WebRTC immédiatement
+    var frame = $('cam-frame');
+    if (frame) {
+      frame.src = '/legacy?room=' + encodeURIComponent(room) + '&autojoin=1';
+    }
+  }
+
   // ─── Choix de l'appartement ───
-  // Etage deduit du nom d'appartement (Apt 1A -> Rez-de-chaussee, 2x -> 1er, etc.)
   function floorOf(apt){
     if (!apt) return '\u2014';
     var m = apt.match(/(\d)/);
@@ -121,7 +143,7 @@
   }
   $('apt-change').addEventListener('click', openAptModal);
   renderAptName();
-  if (!myApt) openAptModal();  // premier lancement : demander l'appartement
+  if (!myApt) openAptModal();
 
   // ─── Generer un code (local) ───
   var btnGen = $('btn-gen-code');
@@ -165,109 +187,21 @@
     });
   }
 
-// ─── Gestion et Diagnostic des Notifications Push (Spécial iPhone) ───
-  function registerPushNotification() {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-      alert("⚠️ Erreur : Les notifications ne sont pas supportées. Vérifiez que vous avez bien lancé l'application depuis l'ÉCRAN D'ACCUEIL et non depuis Safari !");
-      return;
-    }
-    if (!myApt) {
-      alert("⚠️ Erreur : Veuillez d'abord sélectionner un appartement dans l'application.");
-      return;
-    }
+  // ─── ⚡ RÉCEPTION DU SIGNAL DE DÉCROCHAGE (SPÉCIAL IPHONE) ───
 
-    alert("🚀 Étape 1 : Demande de permission à l'iPhone...");
-    
-    Notification.requestPermission().then(function(permission) {
-      alert("📋 Permission accordée par l'utilisateur ? " + permission);
-      if (permission !== 'granted') return;
-
-      alert("🌐 Étape 2 : Récupération de la clé VAPID depuis Render...");
-      
-      fetch('/api/vapid')
-        .then(res => {
-          if (!res.ok) throw new Error("Le serveur Render a renvoyé une erreur " + res.status);
-          return res.json();
-        })
-        .then(config => {
-          alert("🔑 Clé VAPID reçue avec succès !");
-          if (!config.publicKey) {
-            alert("⚠️ Erreur : La clé publique reçue est vide.");
-            return;
-          }
-
-          // Conversion de la clé VAPID
-          const padding = '='.repeat((4 - config.publicKey.length % 4) % 4);
-          const base64 = (config.publicKey + padding).replace(/\-/g, '+').replace(/_/g, '/');
-          const rawData = window.atob(base64);
-          const outputArray = new Uint8Array(rawData.length);
-          for (let i = 0; i < rawData.length; ++i) { outputArray[i] = rawData.charCodeAt(i); }
-
-          alert("📱 Étape 3 : Création de l'abonnement auprès d'Apple Push (APNs)...");
-          
-          return navigator.serviceWorker.ready.then(function(reg) {
-            return reg.pushManager.subscribe({
-              userVisibleOnly: true,
-              applicationServerKey: outputArray
-            });
-          });
-        })
-        .then(function(sub) {
-          if (!sub) {
-            alert("⚠️ Échec : Aucun identifiant de souscription n'a été généré.");
-            return;
-          }
-          
-          alert("📡 Étape 4 : Envoi du token de l'iPhone à ton serveur Render...");
-          
-          return fetch('/api/subscribe', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ subscription: sub, apt: myApt })
-          });
-        })
-        .then(res => {
-          if (!res.ok) throw new Error("Le serveur Render a refusé l'enregistrement HTTP " + res.status);
-          alert("🎉 SUCCÈS TOTAL ! Votre iPhone est lié à l'appartement " + myApt + ". Vous pouvez fermer l'app et tester la sonnette !");
-        })
-        .catch(err => {
-          alert('❌ ERREUR CRITIQUE : ' + err.message);
-          console.error(err);
-        });
-    });
-  }
-
-  // Activer le Service Worker et lier le bouton d'activation
+  // Cas n°1 : L'application était en arrière-plan (Capture du postMessage du SW)
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', function() {
-      navigator.serviceWorker.register('/sw.js').then(function() {
-        console.log("Service Worker enregistré !");
-        
-        // Utilise ton helper '$' déjà défini plus haut
-        var btnPush = $('btn-activate-push');
-        if (btnPush) {
-          btnPush.addEventListener('click', function() {
-            registerPushNotification();
-          });
-        }
-      });
+    navigator.serviceWorker.addEventListener('message', function(event) {
+      if (event.data && event.data.type === 'NOTIFICATION_ACCEPT') {
+        autoAcceptCall(event.data.room);
+      }
     });
   }
 
-  // ─── Intercepter le clic de notification et décrocher automatiquement ───
+  // Cas n°2 : L'application était complètement fermée (Lecture des paramètres d'URL au démarrage)
   var urlParams = new URLSearchParams(window.location.search);
-  var roomParam = urlParams.get('room');
-  var actionParam = urlParams.get('action');
-  
-  if (roomParam && actionParam === 'accept') {
-    // 1. Ouvrir l'onglet Caméra
-    var camTab = document.querySelector('.tab[data-page="camera"]');
-    if (camTab) camTab.click();
-    
-    // 2. Brancher l'iframe sur la bonne room vidéo
-    var frame = $('cam-frame');
-    if (frame) {
-      frame.src = 'https://' + window.location.host + '/legacy?room=' + encodeURIComponent(roomParam) + '&autojoin=1';
-    }
+  if (urlParams.get('action') === 'accept') {
+    autoAcceptCall(urlParams.get('room'));
   }
+
 })();
