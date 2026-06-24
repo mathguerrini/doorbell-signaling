@@ -41,6 +41,7 @@ if (VAPID_KEYS.publicKey !== 'BMciinMRoHGsc8D2pJOZQxpyB_9Z4oDTKPz6Aec9xEiqay_7-S
 
 // Stockage temporaire des abonnements de téléphones (en mémoire)
 const pushSubscriptions = []; // Contiendra des objets { apt: "Apt 1A", sub: {...} }
+const pendingRings = {}; // { "Apt 1A": { room, apt, ts } } — appels en cours, pour les résidents qui ouvrent l'app après la notif
 // ─── Config ──────────────────────────────────────────────────────────────────
 
 const CONFIG = {
@@ -138,6 +139,9 @@ const handlers = {
   ring(ws, msg)   {
     log.info(`RING vers "${msg.apt}" (room video: ${msg.room})`);
     
+    // Mémoriser l'appel en cours (pour un résident qui ouvre l'app via la notif)
+    pendingRings[msg.apt] = { room: msg.room, apt: msg.apt, ts: Date.now() };
+
     // Envoi classique par WebSocket aux applications actuellement ouvertes
     wss.clients.forEach(c => {
       if (c.readyState === WebSocket.OPEN && c !== ws) {
@@ -172,6 +176,7 @@ const handlers = {
   // Refus d'appel : broadcast a tous (la carte le captera pour revenir a idle)
   ring_deny(ws, msg) {
     log.info(`REFUS d'appel pour "${msg.apt}"`);
+    delete pendingRings[msg.apt];   // l'appel n'est plus en attente
     wss.clients.forEach(c => {
       if (c.readyState === WebSocket.OPEN && c !== ws) {
         send(c, { type: 'ring_deny', apt: msg.apt, room: msg.room });
@@ -182,8 +187,13 @@ const handlers = {
   register(ws, msg) {
     ws._apt = msg.apt;
     log.info(`${ws._id} enregistré comme "${msg.apt}"`);
+    // Si un appel est en cours pour cet apt (< 30s), le renvoyer au résident qui (re)vient
+    const pending = pendingRings[msg.apt];
+    if (pending && (Date.now() - pending.ts) < 30000) {
+      log.info(`Ring en attente renvoyé à ${msg.apt} (room ${pending.room})`);
+      send(ws, { type: 'ring', apt: pending.apt, room: pending.room });
+    }
   },
-  ping(ws) { send(ws, { type: 'pong' }); },
 };
 
 // ─── Page HTML ────────────────────────────────────────────────────────────────
