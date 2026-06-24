@@ -1,13 +1,13 @@
 {
   "name": "doorbell-signaling-server",
   "version": "1.0.0",
-  "description": "WebSocket signaling server for ESP32 WebRTC doorbell",
+  "description": "Doorbell WebRTC Signaling Server",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js"
+    "start": "node server.js"
   },
   "dependencies": {
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "web-push": "^3.6.7" 
   }
 }
