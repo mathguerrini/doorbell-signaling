@@ -187,6 +187,94 @@
     });
   }
 
+  // ─── 📡 GESTION ET DIAGNOSTIC DES NOTIFICATIONS PUSH (RESTAURÉ) ───
+  function registerPushNotification() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      alert("⚠️ Erreur : Les notifications ne sont pas supportées. Vérifiez que vous avez bien lancé l'application depuis l'ÉCRAN D'ACCUEIL et non depuis Safari !");
+      return;
+    }
+    if (!myApt) {
+      alert("⚠️ Erreur : Veuillez d'abord sélectionner un appartement dans l'application.");
+      return;
+    }
+
+    alert("🚀 Étape 1 : Demande de permission à l'iPhone...");
+    
+    Notification.requestPermission().then(function(permission) {
+      alert("📋 Permission accordée par l'utilisateur ? " + permission);
+      if (permission !== 'granted') return;
+
+      alert("🌐 Étape 2 : Récupération de la clé VAPID depuis Render...");
+      
+      fetch('/api/vapid')
+        .then(res => {
+          if (!res.ok) throw new Error("Le serveur Render a renvoyé une erreur " + res.status);
+          return res.json();
+        })
+        .then(config => {
+          alert("🔑 Clé VAPID reçue avec succès !");
+          if (!config.publicKey) {
+            alert("⚠️ Erreur : La clé publique reçue est vide.");
+            return;
+          }
+
+          // Conversion de la clé VAPID
+          const padding = '='.repeat((4 - config.publicKey.length % 4) % 4);
+          const base64 = (config.publicKey + padding).replace(/\-/g, '+').replace(/_/g, '/');
+          const rawData = window.atob(base64);
+          const outputArray = new Uint8Array(rawData.length);
+          for (let i = 0; i < rawData.length; ++i) { outputArray[i] = rawData.charCodeAt(i); }
+
+          alert("📱 Étape 3 : Création de l'abonnement auprès d'Apple Push (APNs)...");
+          
+          return navigator.serviceWorker.ready.then(function(reg) {
+            return reg.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: outputArray
+            });
+          });
+        })
+        .then(function(sub) {
+          if (!sub) {
+            alert("⚠️ Échec : Aucun identifiant de souscription n'a été généré.");
+            return;
+          }
+          
+          alert("📡 Étape 4 : Envoi du token de l'iPhone à ton serveur Render...");
+          
+          return fetch('/api/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subscription: sub, apt: myApt })
+          });
+        })
+        .then(res => {
+          if (!res.ok) throw new Error("Le serveur Render a refusé l'enregistrement HTTP " + res.status);
+          alert("🎉 SUCCÈS TOTAL ! Votre iPhone est lié à l'appartement " + myApt + ". Vous pouvez fermer l'app et tester la sonnette !");
+        })
+        .catch(err => {
+          alert('❌ ERREUR CRITIQUE : ' + err.message);
+          console.error(err);
+        });
+    });
+  }
+
+  // Activer le Service Worker et lier le bouton d'activation bleu
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+      navigator.serviceWorker.register('/sw.js').then(function() {
+        console.log("Service Worker enregistré !");
+        
+        var btnPush = $('btn-activate-push');
+        if (btnPush) {
+          btnPush.addEventListener('click', function() {
+            registerPushNotification();
+          });
+        }
+      });
+    });
+  }
+
   // ─── ⚡ RÉCEPTION DU SIGNAL DE DÉCROCHAGE (SPÉCIAL IPHONE) ───
 
   // Cas n°1 : L'application était en arrière-plan (Capture du postMessage du SW)
