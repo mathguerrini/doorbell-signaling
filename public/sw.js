@@ -1,8 +1,7 @@
-// sw.js - Gestionnaire de notifications en arrière-plan
+// sw.js - Gestionnaire de notifications avec boutons de décrochage
 self.addEventListener('install', (e) => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(clients.claim()));
 
-// 1. Écouter l'événement "sonnerie" envoyé par Render
 self.addEventListener('push', (event) => {
   let data = { title: "Visiophone", body: "Quelqu'un sonne à la porte !", room: "" };
   
@@ -14,10 +13,16 @@ self.addEventListener('push', (event) => {
     body: data.body,
     icon: '/icon.svg',
     badge: '/icon.svg',
-    tag: 'visiophone-ring', // Évite d'empiler 50 notifications si ça insiste
-    requireInteraction: true, // La notification reste à l'écran tant qu'on ne clique pas
-    data: { room: data.room }, // On stocke l'ID de la session WebRTC
-    vibrate: [500, 200, 500, 200, 500] // Vibration style sonnerie
+    tag: 'visiophone-ring',
+    requireInteraction: true, // Reste à l'écran tant qu'on n'interagit pas
+    data: { room: data.room },
+    vibrate: [500, 200, 500, 200, 500],
+    
+    // ─── ICI ON AJOUTE LES BOUTONS NATIFS POUR IPHONE ───
+    actions: [
+      { action: 'accept', title: '📞 Répondre' },
+      { action: 'deny', title: '❌ Refuser' }
+    ]
   };
 
   event.waitUntil(
@@ -25,23 +30,31 @@ self.addEventListener('push', (event) => {
   );
 });
 
-// 2. Action quand l'utilisateur clique sur la notification
+// Action quand l'utilisateur interagit avec la notification ou les boutons
 self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
+  event.notification.close(); // Ferme la notification
+  
   const room = event.notification.data ? event.notification.data.room : '';
   
-  // URL à ouvrir : on passe la room en paramètre à l'application principale
-  const urlToOpen = room ? `/?room=${encodeURIComponent(room)}` : '/';
+  // 1. Si l'utilisateur clique sur "Refuser"
+  if (event.action === 'deny') {
+    console.log("L'utilisateur a refusé l'appel.");
+    return; // On s'arrête là, la notification se ferme
+  }
+
+  // 2. Si l'utilisateur clique sur "Répondre" OU directement sur la bannière
+  // On ajoute un paramètre &action=accept pour dire à home.js de brancher la caméra direct !
+  const urlToOpen = room ? `/?room=${encodeURIComponent(room)}&action=accept` : '/';
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      // Si l'app est déjà ouverte, on la focus
+      // Si l'app est déjà ouverte en tâche de fond, on la passe au premier plan
       for (let client of windowClients) {
         if (client.url.includes(location.origin) && 'focus' in client) {
           return client.focus().then(() => client.navigate(urlToOpen));
         }
       }
-      // Sinon, on ouvre l'application
+      // Sinon, on ouvre l'application proprement
       if (clients.openWindow) return clients.openWindow(urlToOpen);
     })
   );

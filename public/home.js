@@ -167,7 +167,6 @@
 
 // ─── Gestion et Diagnostic des Notifications Push (Spécial iPhone) ───
   function registerPushNotification() {
-    // Vérification des prérequis d'Apple
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
       alert("⚠️ Erreur : Les notifications ne sont pas supportées. Vérifiez que vous avez bien lancé l'application depuis l'ÉCRAN D'ACCUEIL et non depuis Safari !");
       return;
@@ -197,7 +196,7 @@
             return;
           }
 
-          // Conversion de la clé pour le protocole de l'iPhone
+          // Conversion de la clé VAPID
           const padding = '='.repeat((4 - config.publicKey.length % 4) % 4);
           const base64 = (config.publicKey + padding).replace(/\-/g, '+').replace(/_/g, '/');
           const rawData = window.atob(base64);
@@ -238,14 +237,14 @@
     });
   }
 
-  // Activer le Service Worker et lier le clic du bouton
+  // Activer le Service Worker et lier le bouton d'activation
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function() {
       navigator.serviceWorker.register('/sw.js').then(function() {
-        console.log("Service worker OK");
+        console.log("Service Worker enregistré !");
         
-        // Attacher l'événement au bouton qu'on a créé
-        var btnPush = document.getElementById('btn-activate-push');
+        // Utilise ton helper '$' déjà défini plus haut
+        var btnPush = $('btn-activate-push');
         if (btnPush) {
           btnPush.addEventListener('click', function() {
             registerPushNotification();
@@ -253,5 +252,22 @@
         }
       });
     });
+  }
+
+  // ─── Intercepter le clic de notification et décrocher automatiquement ───
+  var urlParams = new URLSearchParams(window.location.search);
+  var roomParam = urlParams.get('room');
+  var actionParam = urlParams.get('action');
+  
+  if (roomParam && actionParam === 'accept') {
+    // 1. Ouvrir l'onglet Caméra
+    var camTab = document.querySelector('.tab[data-page="camera"]');
+    if (camTab) camTab.click();
+    
+    // 2. Brancher l'iframe sur la bonne room vidéo
+    var frame = $('cam-frame');
+    if (frame) {
+      frame.src = 'https://' + window.location.host + '/legacy?room=' + encodeURIComponent(roomParam) + '&autojoin=1';
+    }
   }
 })();
