@@ -10,7 +10,6 @@
 </head>
 <body>
   <div id="app">
-    <!-- ACCUEIL -->
     <section class="page active" id="page-home">
       <header class="hdr">
         <div class="hdr-top">
@@ -27,12 +26,6 @@
             <div class="t1">Portail connecte</div>
             <div class="t2">Systeme actif et operationnel</div>
           </div>
-        </div>
-        <div class="card" style="padding: 15px; text-align: center; border: 2px dashed var(--primary);">
-          <div class="t1" style="margin-bottom: 8px; font-size: 14px;">Configuration Smartphone</div>
-          <button id="btn-activate-push" style="background: var(--primary); color: white; border: none; padding: 12px 20px; border-radius: 12px; font-weight: 600; font-family: inherit; width: 100%; cursor: pointer;">
-            🔔 Activer les Notifications PWA
-          </button>
         </div>
         <div class="sec-label">Ma residence</div>
         <div class="card">
@@ -61,12 +54,10 @@
       </div>
     </section>
 
-    <!-- CAMERA (iframe vers la page WebRTC existante) -->
     <section class="page" id="page-camera">
       <iframe id="cam-frame" src="/legacy" title="Camera"></iframe>
     </section>
 
-    <!-- HISTORIQUE -->
     <section class="page" id="page-history">
       <header class="hdr">
         <div class="hdr-top">
@@ -84,7 +75,6 @@
       </div>
     </section>
 
-    <!-- PROFIL -->
     <section class="page" id="page-profile">
       <header class="hdr">
         <div class="hdr-top">
@@ -105,6 +95,14 @@
             <button class="apt-change-btn" id="apt-change">Changer</button>
           </div>
         </div>
+
+        <div class="sec-label">Notifications PWA</div>
+        <div class="card" style="padding: 12px;">
+          <button id="btn-activate-push" style="width: 100%; background: #1E82E6; color: white; border: none; padding: 14px; border-radius: 8px; font-weight: bold; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+            🔔 Activer les notifications push
+          </button>
+        </div>
+
         <div class="sec-label">Compte</div>
         <div class="card"><div class="t1">Mon Visiophone</div><div class="t2">Gestionnaire de portail</div></div>
         <div class="sec-label">Systeme</div>
@@ -113,8 +111,6 @@
     </section>
   </div>
 
-
-  <!-- Pop-up d'appel entrant -->
   <div id="ring-overlay" class="ring-overlay hidden">
     <div class="ring-card">
       <div class="ring-ic">&#128276;</div>
@@ -127,19 +123,13 @@
     </div>
   </div>
 
-  <!-- Modal choix appartement -->
   <div id="apt-modal" class="ring-overlay hidden">
     <div class="ring-card">
       <div class="ring-title">Quel appartement ?</div>
       <div id="apt-list" class="apt-list"></div>
     </div>
   </div>
-  <div style="padding: 15px; text-align: center;">
-    <button id="btn-activate-push" style="background: var(--primary); color: white; border: none; padding: 12px 24px; border-radius: 10px; font-weight: 600; font-family: inherit;">
-      🔔 Activer les Notifications
-    </button>
-  </div>
-  <!-- NAVIGATION -->
+
   <nav class="tabbar">
     <button class="tab active" data-page="home"><span>&#8962;</span><label>Accueil</label></button>
     <button class="tab" data-page="camera"><span>&#9673;</span><label>Camera</label></button>

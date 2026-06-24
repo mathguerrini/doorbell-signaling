@@ -7,7 +7,7 @@
   // ─── Etat ───
   var myApt = localStorage.getItem('myApt') || null;
   var pendingRoom = null;  // room video recue dans le ring
-  var activeCallRoom = null; // SÉCURITÉ : stocke la room en cours pour bloquer les popups intrusifs
+  var activeCallRoom = null; // SÉCURITÉ : Bloque les pop-ups WebSockets si l'appel est déjà accepté
 
   // Bip de confirmation "porte ouverte"
   function playOpenChime(){
@@ -59,8 +59,7 @@
   function onRing(msg){
     if (!myApt || msg.apt !== myApt) return;
 
-    // 🛡️ VERROU DE SÉCURITÉ : Si on est déjà en train de regarder cette caméra via l'auto-décrochage,
-    // on ignore complètement le signal de sonnette pour éviter que le pop-up ne revienne à l'écran.
+    // 🛡️ VERROU : Si l'iPhone est déjà calé sur la caméra de cette room, on ignore le signal WebSocket
     if (activeCallRoom === msg.room) return;
 
     pendingRoom = msg.room || null;
@@ -86,13 +85,13 @@
   function autoAcceptCall(room) {
     if (!room) return;
     
-    // Activer le verrou
+    // Activer le verrou de sécurité
     activeCallRoom = room;
 
-    // Fermer le pop-up s'il est ouvert
+    // Masquer le pop-up s'il est à l'écran
     if (ringOverlay) ringOverlay.classList.add('hidden');
 
-    // 1. Basculer visuellement sur l'onglet Caméra
+    // 1. Basculer visuellement vers l'onglet Caméra
     var camTab = document.querySelector('.tab[data-page="camera"]');
     var allTabs = document.querySelectorAll('.tab');
     var allPages = document.querySelectorAll('.page');
@@ -102,7 +101,7 @@
       allPages.forEach(function(p) { p.classList.toggle('active', p.id === 'page-camera'); });
     }
     
-    // 2. Brancher l'iframe WebRTC immédiatement
+    // 2. Brancher et forcer l'autojoin sur l'iframe WebRTC
     var frame = $('cam-frame');
     if (frame) {
       frame.src = '/legacy?room=' + encodeURIComponent(room) + '&autojoin=1';
@@ -187,37 +186,31 @@
     });
   }
 
-  // ─── 📡 GESTION ET DIAGNOSTIC DES NOTIFICATIONS PUSH (RESTAURÉ) ───
+  // ─── 📡 ENREGISTREMENT ET DIAGNOSTIC DES NOTIFICATIONS PUSH ───
   function registerPushNotification() {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-      alert("⚠️ Erreur : Les notifications ne sont pas supportées. Vérifiez que vous avez bien lancé l'application depuis l'ÉCRAN D'ACCUEIL et non depuis Safari !");
+      alert("⚠️ Erreur : Les notifications ne sont pas supportées. Lancez l'application depuis l'ÉCRAN D'ACCUEIL de votre iPhone (PWA) !");
       return;
     }
     if (!myApt) {
-      alert("⚠️ Erreur : Veuillez d'abord sélectionner un appartement dans l'application.");
+      alert("⚠️ Erreur : Veuillez d'abord choisir un appartement.");
       return;
     }
 
     alert("🚀 Étape 1 : Demande de permission à l'iPhone...");
-    
     Notification.requestPermission().then(function(permission) {
-      alert("📋 Permission accordée par l'utilisateur ? " + permission);
+      alert("📋 Permission accordée ? " + permission);
       if (permission !== 'granted') return;
 
       alert("🌐 Étape 2 : Récupération de la clé VAPID depuis Render...");
-      
       fetch('/api/vapid')
         .then(res => {
-          if (!res.ok) throw new Error("Le serveur Render a renvoyé une erreur " + res.status);
+          if (!res.ok) throw new Error("Le serveur a renvoyé une erreur " + res.status);
           return res.json();
         })
         .then(config => {
           alert("🔑 Clé VAPID reçue avec succès !");
-          if (!config.publicKey) {
-            alert("⚠️ Erreur : La clé publique reçue est vide.");
-            return;
-          }
-
+          
           // Conversion de la clé VAPID
           const padding = '='.repeat((4 - config.publicKey.length % 4) % 4);
           const base64 = (config.publicKey + padding).replace(/\-/g, '+').replace(/_/g, '/');
@@ -225,8 +218,7 @@
           const outputArray = new Uint8Array(rawData.length);
           for (let i = 0; i < rawData.length; ++i) { outputArray[i] = rawData.charCodeAt(i); }
 
-          alert("📱 Étape 3 : Création de l'abonnement auprès d'Apple Push (APNs)...");
-          
+          alert("📱 Étape 3 : Création de l'abonnement auprès d'Apple (APNs)...");
           return navigator.serviceWorker.ready.then(function(reg) {
             return reg.pushManager.subscribe({
               userVisibleOnly: true,
@@ -235,13 +227,7 @@
           });
         })
         .then(function(sub) {
-          if (!sub) {
-            alert("⚠️ Échec : Aucun identifiant de souscription n'a été généré.");
-            return;
-          }
-          
-          alert("📡 Étape 4 : Envoi du token de l'iPhone à ton serveur Render...");
-          
+          alert("📡 Étape 4 : Envoi du jeton Apple au serveur Render...");
           return fetch('/api/subscribe', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -249,22 +235,19 @@
           });
         })
         .then(res => {
-          if (!res.ok) throw new Error("Le serveur Render a refusé l'enregistrement HTTP " + res.status);
-          alert("🎉 SUCCÈS TOTAL ! Votre iPhone est lié à l'appartement " + myApt + ". Vous pouvez fermer l'app et tester la sonnette !");
+          if (!res.ok) throw new Error("Erreur HTTP serveur : " + res.status);
+          alert("🎉 SUCCÈS TOTAL ! Votre iPhone recevra les notifications pour l'appartement : " + myApt);
         })
         .catch(err => {
           alert('❌ ERREUR CRITIQUE : ' + err.message);
-          console.error(err);
         });
     });
   }
 
-  // Activer le Service Worker et lier le bouton d'activation bleu
+  // Initialisation du bouton d'activation
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function() {
       navigator.serviceWorker.register('/sw.js').then(function() {
-        console.log("Service Worker enregistré !");
-        
         var btnPush = $('btn-activate-push');
         if (btnPush) {
           btnPush.addEventListener('click', function() {
@@ -277,7 +260,7 @@
 
   // ─── ⚡ RÉCEPTION DU SIGNAL DE DÉCROCHAGE (SPÉCIAL IPHONE) ───
 
-  // Cas n°1 : L'application était en arrière-plan (Capture du postMessage du SW)
+  // Cas n°1 : L'application était en tâche de fond (Capture du postMessage du Service Worker)
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', function(event) {
       if (event.data && event.data.type === 'NOTIFICATION_ACCEPT') {
