@@ -164,4 +164,52 @@
       }, 2500);
     });
   }
+
+// ─── Gestion de l'abonnement aux notifications Push ───
+  function registerPushNotification() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !myApt) return;
+
+    navigator.serviceWorker.ready.then(function(reg) {
+      // 1. Récupérer la clé publique VAPID du serveur Render
+      fetch('/api/vapid')
+        .then(res => res.json())
+        .then(config => {
+          if (!config.publicKey) return;
+
+          // Convertir la clé VAPID String en format Array exigé par le navigateur
+          const padding = '='.repeat((4 - config.publicKey.length % 4) % 4);
+          const base64 = (config.publicKey + padding).replace(/\-/g, '+').replace(/_/g, '/');
+          const rawData = window.atob(base64);
+          const outputArray = new Uint8Array(rawData.length);
+          for (let i = 0; i < rawData.length; ++i) { outputArray[i] = rawData.charCodeAt(i); }
+
+          // 2. Demander l'autorisation à l'iPhone et créer l'abonnement
+          return reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: outputArray
+          });
+        })
+        .then(function(sub) {
+          if (!sub) return;
+
+          // 3. Envoyer l'abonnement à ton API Render avec l'appartement lié
+          return fetch('/api/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subscription: sub, apt: myApt })
+          });
+        })
+        .then(() => console.log('iPhone synchronisé avec le serveur pour les notifications Push !'))
+        .catch(err => console.error('Erreur lors de l\'enregistrement Push:', err));
+    });
+  }
+
+  // Activer le Service Worker au démarrage
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+      navigator.serviceWorker.register('/sw.js').then(function() {
+        if (myApt) registerPushNotification();
+      });
+    });
+  }
 })();

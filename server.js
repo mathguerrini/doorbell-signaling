@@ -22,7 +22,25 @@ const http   = require('http');
 const fs     = require('fs');
 const path   = require('path');
 const { WebSocketServer, WebSocket } = require('ws');
+const webpush = require('web-push');
 
+// Configuration VAPID (Mets ici les clés générées à l'étape 1)
+const VAPID_KEYS = {
+  publicKey: process.env.VAPID_PUBLIC_KEY || 'BMciinMRoHGsc8D2pJOZQxpyB_9Z4oDTKPz6Aec9xEiqay_7-SXujmjtXmitlfdKLdZ5LlYK7SqlyrXt0WUz2GQ',
+  privateKey: process.env.VAPID_PRIVATE_KEY || '6B1krtccCKz0TJpZgLFbR5MY3sF1pnmf02ut0tHDH3s',
+};
+
+// Configurer web-push si les clés sont renseignées
+if (VAPID_KEYS.publicKey !== 'BMciinMRoHGsc8D2pJOZQxpyB_9Z4oDTKPz6Aec9xEiqay_7-SXujmjtXmitlfdKLdZ5LlYK7SqlyrXt0WUz2GQI') {
+  webpush.setVapidDetails(
+    'mailto:mat7.guerrini@gmail.com', // Un email de contact requis par Apple/Google
+    VAPID_KEYS.publicKey,
+    VAPID_KEYS.privateKey
+  );
+}
+
+// Stockage temporaire des abonnements de téléphones (en mémoire)
+const pushSubscriptions = []; // Contiendra des objets { apt: "Apt 1A", sub: {...} }
 // ─── Config ──────────────────────────────────────────────────────────────────
 
 const CONFIG = {
@@ -116,11 +134,38 @@ const handlers = {
     const p = getPeer(ws); if(p) send(p, msg);
   },
   // L'ESP32 signale un appel vers un appartement : on diffuse à toutes les apps
+  // L'ESP32 signale un appel vers un appartement : on diffuse aux WS + en Push local
   ring(ws, msg)   {
     log.info(`RING vers "${msg.apt}" (room video: ${msg.room})`);
+    
+    // Envoi classique par WebSocket aux applications actuellement ouvertes
     wss.clients.forEach(c => {
       if (c.readyState === WebSocket.OPEN && c !== ws) {
         send(c, { type: 'ring', apt: msg.apt, room: msg.room });
+      }
+    });
+
+    // Envoi par Web Push (Apple Push Notification service) pour les applications fermées
+    const payload = JSON.stringify({
+      title: "Visiophone",
+      body: `Quelqu'un sonne au ${msg.apt} !`,
+      room: msg.room // On transmet la room pour que l'app se connecte au décrochage
+    });
+
+    pushSubscriptions.forEach(entry => {
+      // On cible uniquement les smartphones configurés pour cet appartement
+      if (entry.apt === msg.apt) {
+        webpush.sendNotification(entry.sub, payload)
+          .then(() => log.info(`[Push] Notification envoyée avec succès au ${msg.apt}`))
+          .catch(err => {
+            log.warn(`[Push] Échec envoi au ${msg.apt} : ${err.message}`);
+            // Si le token a expiré (l'utilisateur a supprimé la PWA par exemple), on nettoie la mémoire
+            if (err.statusCode === 410 || err.statusCode === 404) {
+              const idx = pushSubscriptions.indexOf(entry);
+              if (idx > -1) pushSubscriptions.splice(idx, 1);
+              log.info('[Push] Abonnement expiré supprimé.');
+            }
+          });
       }
     });
   },
@@ -1071,6 +1116,39 @@ const httpServer = http.createServer((req, res) => {
 
   // Chemin sans query string (pour matcher /legacy?room=...&autojoin=1)
   const pathname = req.url.split('?')[0];
+  // 1. Permettre à l'iPhone de récupérer la clé publique pour chiffrer l'abonnement
+  if (pathname === '/api/vapid') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ publicKey: VAPID_KEYS.publicKey }));
+  }
+
+  // 2. Recevoir et sauvegarder la clé d'abonnement (le token de push) de l'iPhone
+  if (req.method === 'POST' && pathname === '/api/subscribe') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const data = JSON.parse(body);
+        if (data.subscription && data.apt) {
+          // Éviter d'enregistrer deux fois le même appareil
+          const exists = pushSubscriptions.find(s => s.sub.endpoint === data.subscription.endpoint);
+          if (!exists) {
+            pushSubscriptions.push({ apt: data.apt, sub: data.subscription });
+            log.info(`[Push] Nouvel appareil enregistré pour l'appartement : ${data.apt}`);
+          } else {
+            exists.apt = data.apt; // Mise à jour de l'appartement si changé
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ status: 'ok' }));
+        }
+      } catch (e) {
+        log.error('Erreur inscription push:', e.message);
+      }
+      res.writeHead(400);
+      return res.end('Bad Request');
+    });
+    return;
+  }
   // Ancienne page WebRTC (utilisée dans l'iframe Caméra)
   if (pathname === '/legacy') {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
