@@ -194,6 +194,14 @@ const handlers = {
       send(ws, { type: 'ring', apt: pending.apt, room: pending.room });
     }
   },
+
+  get_pending_ring(ws, msg) {
+    const pending = pendingRings[msg.apt];
+    if (pending && (Date.now() - pending.ts) < 30000) {
+      log.info(`Ring en attente (re)demandé par ${msg.apt} (room ${pending.room})`);
+      send(ws, { type: 'ring', apt: pending.apt, room: pending.room });
+    }
+  },
 };
 
 // ─── Page HTML ────────────────────────────────────────────────────────────────

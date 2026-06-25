@@ -33,34 +33,26 @@ self.addEventListener('push', (event) => {
 // Action quand l'utilisateur interagit avec la notification ou les boutons
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const room = event.notification.data ? event.notification.data.room : '';
 
+  // Refus depuis la notif : on ne fait rien (optionnel : prévenir le serveur)
   if (event.action === 'deny') {
-    return; // refus, on ne fait rien
+    return;
   }
 
-  // Bouton "Répondre" => acceptation directe
-  // Tap sur le corps => ouvrir l'app SANS accepter (laisse le pop-up s'afficher)
-  var urlToOpen;
-  if (event.action === 'accept') {
-    urlToOpen = room ? `/index.html?room=${encodeURIComponent(room)}&action=accept` : '/index.html';
-  } else {
-    urlToOpen = '/index.html'; // tap sur le corps : pas d'auto-accept
-  }
-
+  // Dans TOUS les autres cas (tap sur le corps OU bouton Répondre) :
+  // on ouvre/ramène l'app, et on lui demande d'afficher le pop-up.
   event.waitUntil(
-    clients.matchAll({ type:'window', includeUncontrolled:true }).then((windowClients) => {
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      // App déjà ouverte (premier plan ou arrière-plan) → focus + signal "afficher le ring"
       for (let client of windowClients) {
         if (client.url.includes(location.origin) && 'focus' in client) {
           return client.focus().then(() => {
-            if (event.action === 'accept' && 'postMessage' in client) {
-              client.postMessage({ type:'NOTIFICATION_ACCEPT', room: room });
-            }
-            // si tap sur le corps : focus seulement, le pop-up ring s'affichera via le WS
+            client.postMessage({ type: 'SHOW_RING' }); // demande d'afficher le pop-up
           });
         }
       }
-      if (clients.openWindow) return clients.openWindow(urlToOpen);
+      // App fermée → on l'ouvre ; home.js demandera le ring au chargement
+      if (clients.openWindow) return clients.openWindow('/index.html');
     })
   );
 });

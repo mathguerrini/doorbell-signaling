@@ -262,17 +262,14 @@
 
   // Cas n°1 : L'application était en tâche de fond (Capture du postMessage du Service Worker)
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.addEventListener('message', function(event) {
-      if (event.data && event.data.type === 'NOTIFICATION_ACCEPT') {
-        autoAcceptCall(event.data.room);
+  navigator.serviceWorker.addEventListener('message', function(event) {
+    if (event.data && event.data.type === 'SHOW_RING') {
+      // L'app est revenue au premier plan via la notif : redemander le ring en cours
+      if (ws && wsReady && myApt) {
+        ws.send(JSON.stringify({ type: 'get_pending_ring', apt: myApt }));
       }
-    });
-  }
-
-  // Cas n°2 : L'application était complètement fermée (Lecture des paramètres d'URL au démarrage)
-  var urlParams = new URLSearchParams(window.location.search);
-  if (urlParams.get('action') === 'accept') {
-    autoAcceptCall(urlParams.get('room'));
-  }
+    }
+  });
+}
 
 })();
