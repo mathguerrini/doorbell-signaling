@@ -871,6 +871,7 @@ async function setupPeerConnection() {
   log('Initialisation RTCPeerConnection...');
 
   state.pc = new RTCPeerConnection({
+    iceTransportPolicy: 'relay',
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'turn:global.relay.metered.ca:443',
