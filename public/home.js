@@ -112,7 +112,7 @@
     var frame = $('cam-frame');
     if (frame) frame.src = 'about:blank';
   };
-  
+
   // ─── Choix de l'appartement ───
   function floorOf(apt){
     if (!apt) return '\u2014';
@@ -194,27 +194,27 @@
   // ─── 📡 ENREGISTREMENT ET DIAGNOSTIC DES NOTIFICATIONS PUSH ───
   function registerPushNotification() {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-      alert("⚠️ Erreur : Les notifications ne sont pas supportées. Lancez l'application depuis l'ÉCRAN D'ACCUEIL de votre iPhone (PWA) !");
+      alert(" Erreur : Les notifications ne sont pas supportées. Lancez l'application depuis l'ÉCRAN D'ACCUEIL de votre téléphone (PWA) !");
       return;
     }
     if (!myApt) {
-      alert("⚠️ Erreur : Veuillez d'abord choisir un appartement.");
+      alert(" Erreur : Veuillez d'abord choisir un appartement.");
       return;
     }
 
-    alert("🚀 Étape 1 : Demande de permission à l'iPhone...");
+    alert("Étape 1 : Demande de permission au téléphone...");
     Notification.requestPermission().then(function(permission) {
-      alert("📋 Permission accordée ? " + permission);
+      alert("Permission accordée ? " + permission);
       if (permission !== 'granted') return;
 
-      alert("🌐 Étape 2 : Récupération de la clé VAPID depuis Render...");
+      alert("Étape 2 : Récupération de la clé VAPID depuis Render...");
       fetch('/api/vapid')
         .then(res => {
           if (!res.ok) throw new Error("Le serveur a renvoyé une erreur " + res.status);
           return res.json();
         })
         .then(config => {
-          alert("🔑 Clé VAPID reçue avec succès !");
+          alert("Clé VAPID reçue avec succès !");
           
           // Conversion de la clé VAPID
           const padding = '='.repeat((4 - config.publicKey.length % 4) % 4);
@@ -223,7 +223,7 @@
           const outputArray = new Uint8Array(rawData.length);
           for (let i = 0; i < rawData.length; ++i) { outputArray[i] = rawData.charCodeAt(i); }
 
-          alert("📱 Étape 3 : Création de l'abonnement auprès d'Apple (APNs)...");
+          alert("📱 Étape 3 : Création de l'abonnement (APNs)...");
           return navigator.serviceWorker.ready.then(function(reg) {
             return reg.pushManager.subscribe({
               userVisibleOnly: true,
@@ -232,7 +232,7 @@
           });
         })
         .then(function(sub) {
-          alert("📡 Étape 4 : Envoi du jeton Apple au serveur Render...");
+          alert("📡 Étape 4 : Envoi du jeton au serveur Render...");
           return fetch('/api/subscribe', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -241,10 +241,10 @@
         })
         .then(res => {
           if (!res.ok) throw new Error("Erreur HTTP serveur : " + res.status);
-          alert("🎉 SUCCÈS TOTAL ! Votre iPhone recevra les notifications pour l'appartement : " + myApt);
+          alert("SUCCÈS TOTAL ! Votre téléphone recevra les notifications pour l'appartement : " + myApt);
         })
         .catch(err => {
-          alert('❌ ERREUR CRITIQUE : ' + err.message);
+          alert('ERREUR CRITIQUE : ' + err.message);
         });
     });
   }
