@@ -139,13 +139,18 @@
 
   <script src="/home.js"></script>
   <script>
-    const tabs = document.querySelectorAll('.tab');
-    const pages = document.querySelectorAll('.page');
-    tabs.forEach(tab => tab.addEventListener('click', () => {
-      const id = tab.dataset.page;
-      tabs.forEach(t => t.classList.toggle('active', t === tab));
-      pages.forEach(p => p.classList.toggle('active', p.id === 'page-' + id));
-    }));
-  </script>
+  const tabs = document.querySelectorAll('.tab');
+  const pages = document.querySelectorAll('.page');
+  tabs.forEach(tab => tab.addEventListener('click', () => {
+    const id = tab.dataset.page;
+    tabs.forEach(t => t.classList.toggle('active', t === tab));
+    pages.forEach(p => p.classList.toggle('active', p.id === 'page-' + id));
+
+    // Si on QUITTE la camera => fin d'appel : reset du verrou + coupe l'iframe
+    if (id !== 'camera' && window.resetActiveCall) {
+      window.resetActiveCall();
+    }
+  }));
+</script>
 </body>
 </html>

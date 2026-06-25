@@ -107,7 +107,12 @@
       frame.src = '/legacy?room=' + encodeURIComponent(room) + '&autojoin=1';
     }
   }
-
+  window.resetActiveCall = function(){
+    activeCallRoom = null;
+    var frame = $('cam-frame');
+    if (frame) frame.src = 'about:blank';
+  };
+  
   // ─── Choix de l'appartement ───
   function floorOf(apt){
     if (!apt) return '\u2014';
