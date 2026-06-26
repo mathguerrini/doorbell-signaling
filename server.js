@@ -618,16 +618,16 @@ const HTML_PAGE = `<!DOCTYPE html>
       <div class="section-label">Contrôles</div>
       <div style="display:flex;flex-direction:column;gap:8px">
         <button class="door-btn" id="btn-door" disabled>
-          <div class="door-icon">🚪</div>
+          <div class="door-icon"></div>
           <div>
             <div>Ouvrir la porte</div>
             <div style="font-size:11px;font-weight:400;color:var(--muted);margin-top:2px">Envoie cmd open_door</div>
           </div>
         </button>
-        <button class="btn btn-ghost btn-full" id="btn-mute" disabled>🎤 Micro activé</button>
-        <button class="btn btn-primary btn-full" id="btn-gencode" disabled>🔑 Générer un code d'accès</button>
+        <button class="btn btn-ghost btn-full" id="btn-mute" disabled> Micro activé</button>
+        <button class="btn btn-primary btn-full" id="btn-gencode" disabled> Générer un code d'accès</button>
         <div id="gencode-display" style="display:none;text-align:center;font-size:34px;font-weight:700;letter-spacing:10px;padding:14px;background:var(--input-bg);border-radius:12px;margin-top:8px"></div>
-        <button class="btn btn-danger btn-full" id="btn-hangup" disabled>📞 Raccrocher</button>
+        <button class="btn btn-danger btn-full" id="btn-hangup" disabled> Raccrocher</button>
       </div>
     </section>
 
@@ -650,7 +650,7 @@ const HTML_PAGE = `<!DOCTYPE html>
 <!-- ── Ring overlay ── -->
 <div id="ring-overlay">
   <div class="ring-card">
-    <div class="ring-bell">🔔</div>
+    <div class="ring-bell"></div>
     <div class="ring-title">Quelqu'un à la porte</div>
     <div class="ring-sub">L'ESP32 sonne — accepter l'appel ?</div>
     <div class="ring-actions">
@@ -979,11 +979,11 @@ function cleanupPeer() {
 function handleCmd(cmd) {
   switch (cmd.toLowerCase()) {
     case 'ring':
-      log('🔔 Sonnette !', 'warn');
+      log(' Sonnette !', 'warn');
       showRingOverlay();
       break;
     case 'door_opened':
-      log('🚪 Porte ouverte confirmée', 'ok');
+      log(' Porte ouverte confirmée', 'ok');
       playOpenChime();
       break;
     default:
@@ -1092,7 +1092,7 @@ els.btnMute.onclick = () => {
   if (state.localStream) {
     state.localStream.getAudioTracks().forEach(t => { t.enabled = state.micOn; });
   }
-  els.btnMute.textContent = state.micOn ? '🎤 Micro activé' : '🔇 Micro coupé';
+  els.btnMute.textContent = state.micOn ? ' Micro activé' : ' Micro coupé';
   log(state.micOn ? 'Micro activé' : 'Micro coupé');
 };
 
