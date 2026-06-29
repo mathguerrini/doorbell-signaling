@@ -11,8 +11,8 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: data.body,
-    icon: '/icon.svg',
-    badge: '/icon.svg',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
     tag: 'visiophone-ring',
     requireInteraction: true, // Reste à l'écran tant qu'on n'interagit pas
     data: { room: data.room },
