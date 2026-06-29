@@ -56,3 +56,10 @@ self.addEventListener('notificationclick', (event) => {
     })
   );
 });
+// Handler fetch minimal — requis pour que le navigateur considère le site
+// comme une vraie PWA installable (WebAPK) et non un simple raccourci.
+self.addEventListener('fetch', (event) => {
+  // Pass-through : on laisse le réseau gérer, mais la présence du handler
+  // rend la PWA installable.
+  return;
+});
