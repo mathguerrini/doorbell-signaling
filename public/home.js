@@ -82,25 +82,37 @@
   });
 
   // ─── Fonction d'auto-décrochage unifiée ───
+// ─── Fonction d'auto-décrochage unifiée ───
   function autoAcceptCall(room) {
     if (!room) return;
-    
+
+    // ─── ANDROID UNIQUEMENT : ouvrir l'appel dans Samsung Internet ───
+    // (Chrome Android ne complète pas le handshake DTLS avec esp_peer ;
+    //  Samsung Internet le fait. iOS n'est PAS concerné par ce bloc.)
+    if (/Android/i.test(navigator.userAgent)) {
+      if (ringOverlay) ringOverlay.classList.add('hidden');
+      var sbUrl = 'intent://doorbell-signaling.onrender.com/legacy?room='
+                + encodeURIComponent(room)
+                + '&autojoin=1#Intent;scheme=https;package=com.sec.android.app.sbrowser;end';
+      window.location.href = sbUrl;
+      return;
+    }
+    // ─── iOS / desktop : comportement d'origine, INCHANGÉ ───
+
     // Activer le verrou de sécurité
     activeCallRoom = room;
-
     // Masquer le pop-up s'il est à l'écran
     if (ringOverlay) ringOverlay.classList.add('hidden');
-
     // 1. Basculer visuellement vers l'onglet Caméra
     var camTab = document.querySelector('.tab[data-page="camera"]');
     var allTabs = document.querySelectorAll('.tab');
     var allPages = document.querySelectorAll('.page');
-    
+
     if (camTab) {
       allTabs.forEach(function(t) { t.classList.toggle('active', t === camTab); });
       allPages.forEach(function(p) { p.classList.toggle('active', p.id === 'page-camera'); });
     }
-    
+
     // 2. Brancher et forcer l'autojoin sur l'iframe WebRTC
     var frame = $('cam-frame');
     if (frame) {
