@@ -59,11 +59,14 @@ self.addEventListener('notificationclick', (event) => {
 // Handler fetch minimal — requis pour que le navigateur considère le site
 // comme une vraie PWA installable (WebAPK) et non un simple raccourci.
 self.addEventListener('fetch', (event) => {
-  // Vrai handler fetch (appelle respondWith) : requis pour que Samsung Internet
-  // et les navigateurs Android considèrent le site comme une vraie PWA installable.
+  // Vrai handler fetch (appelle respondWith) : requis pour l'installabilité PWA.
+  // On passe par le reseau ; si le reseau echoue, on tente le cache, sinon
+  // on renvoie une reponse d'erreur valide (jamais undefined).
   event.respondWith(
     fetch(event.request).catch(function () {
-      return caches.match(event.request);
+      return caches.match(event.request).then(function (cached) {
+        return cached || new Response('', { status: 504, statusText: 'Offline' });
+      });
     })
   );
 });
