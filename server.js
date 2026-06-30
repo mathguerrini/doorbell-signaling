@@ -874,14 +874,14 @@ async function setupPeerConnection() {
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'turn:global.relay.metered.ca:443',
-        username: 'cd124ba56cf32293ac39030f',
-        credential: 'JosiJksWNXiItfgm' },
+        username: '211130c327e898956c259e87',
+        credential: 'QCs25A2QaURaqOSo' },
       { urls: 'turn:global.relay.metered.ca:443?transport=tcp',
-        username: 'cd124ba56cf32293ac39030f',
-        credential: 'JosiJksWNXiItfgm' },
+        username: '211130c327e898956c259e87',
+        credential: 'QCs25A2QaURaqOSo' },
       { urls: 'turns:global.relay.metered.ca:443?transport=tcp',
-        username: 'cd124ba56cf32293ac39030f',
-        credential: 'JosiJksWNXiItfgm' },
+        username: '211130c327e898956c259e87',
+        credential: 'QCs25A2QaURaqOSo' },
     ],
   });
 
