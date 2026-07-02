@@ -47,7 +47,7 @@ const pendingRings = {}; // { "Apt 1A": { room, apt, ts } } — appels en cours,
 const CONFIG = {
   PORT:               process.env.PORT || 8080,
   MAX_PEERS_PER_ROOM: 2,
-  PING_INTERVAL_MS:   2_000,
+  PING_INTERVAL_MS:   0_500,
   LOG_LEVEL:          process.env.LOG_LEVEL || 'info',
 };
 
