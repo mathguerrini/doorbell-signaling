@@ -47,7 +47,7 @@ const pendingRings = {}; // { "Apt 1A": { room, apt, ts } } — appels en cours,
 const CONFIG = {
   PORT:               process.env.PORT || 8080,
   MAX_PEERS_PER_ROOM: 2,
-  PING_INTERVAL_MS:   60_000,
+  PING_INTERVAL_MS:   15_000,
   LOG_LEVEL:          process.env.LOG_LEVEL || 'info',
 };
 
@@ -109,6 +109,14 @@ const handlers = {
     if (ws._roomId) leaveRoom(ws);
     if (!rooms.has(roomId)) rooms.set(roomId, new Set());
     const room = rooms.get(roomId);
+    // Nettoyer les connexions mortes (fantomes) avant de verifier si la room est pleine
+    for (const p of [...room]) {
+      if (p.readyState !== WebSocket.OPEN) {
+        room.delete(p);
+        p._roomId = null;
+        log.info(`[room:${roomId}] connexion morte retiree au join`);
+      }
+    }
     if (room.size >= CONFIG.MAX_PEERS_PER_ROOM)
       return send(ws, { type: 'full', room: roomId });
     room.add(ws);
