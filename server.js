@@ -93,11 +93,18 @@ function leaveRoom(ws) {
   const room = rooms.get(roomId);
   if (!room) return;
   room.delete(ws);
-  log.info(`[room:${roomId}] ${ws._id} parti (${room.size} restant)`);
-  const peer = getPeer(ws);
-  if (peer) send(peer, { type: 'peer_left' });
-  if (room.size === 0) { rooms.delete(roomId); log.info(`[room:${roomId}] supprimée`); }
   ws._roomId = null;
+  log.info(`[room:${roomId}] ${ws._id} parti`);
+  // Option A : la room = la session d'appel. Quand un participant part,
+  // on termine la session pour tout le monde : notifier et retirer les autres.
+  for (const peer of [...room]) {
+    send(peer, { type: 'peer_left' });
+    peer._roomId = null;
+    room.delete(peer);
+    log.info(`[room:${roomId}] ${peer._id} retire (fin de session)`);
+  }
+  rooms.delete(roomId);
+  log.info(`[room:${roomId}] session terminee`);
 }
 
 // ─── Handlers de messages ────────────────────────────────────────────────────
