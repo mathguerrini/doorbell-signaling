@@ -603,7 +603,7 @@ const HTML_PAGE = `<!DOCTYPE html>
 
   <!-- Vidéo -->
   <div class="video-panel">
-    <video id="remote-video" autoplay playsinline muted></video>
+    <video id="remote-video" autoplay playsinline></video>
     <div class="video-overlay" id="video-overlay">
       <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
         <path d="M15 10l4.553-2.069A1 1 0 0121 8.87v6.26a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/>
@@ -674,7 +674,6 @@ const HTML_PAGE = `<!DOCTYPE html>
     </div>
   </div>
 </div>
-<audio id="remote-audio" autoplay playsinline></audio>
 <script>
 // ─── État ──────────────────────────────────────────────────────────────────
 
@@ -685,6 +684,7 @@ const state = {
   peers:     0,
   micOn:     true,
   localStream: null,
+  remoteStream: null,
   connected: false,   // WebRTC connecté
   wsOpen:    false,
 };
@@ -716,7 +716,6 @@ const els = {
   wsUrl:       $('ws-url'),
   footerRoom:  $('footer-room'),
   footerPeers: $('footer-peers'),
-  audioEl: $('remote-audio'),
 };
 
 // ─── Logger UI ─────────────────────────────────────────────────────────────
@@ -919,19 +918,23 @@ async function setupPeerConnection() {
   }
 
   // Flux entrant (vidéo + audio ESP32)
-  state.pc.ontrack = ({ streams, track }) => {
-    if (!streams[0]) return;
+  // Les deux pistes sont fusionnées sur <video> (non muet) plutôt qu'un <audio>
+  // séparé : sur iOS Safari, cela pousse le système à router le son vers le
+  // haut-parleur au lieu de l'écouteur pendant l'appel.
+  if (!state.remoteStream) state.remoteStream = new MediaStream();
+  state.pc.ontrack = ({ track }) => {
+    state.remoteStream.addTrack(track);
+    els.videoEl.srcObject = state.remoteStream;
     if (track.kind === 'video') {
-        els.videoEl.srcObject = streams[0];
         // Jitter buffer court : démarrage plus rapide, moins de latence
         const recv = state.pc.getReceivers().find(r => r.track && r.track.kind === 'video');
         if (recv && 'jitterBufferTarget' in recv) { try { recv.jitterBufferTarget = 400; } catch(e){} }
+        els.videoEl.muted = false;
         els.videoEl.play().catch(e => log('Lecture vidéo: ' + e.message, 'warn'));
         setVideoVisible(true);
         log('Flux vidéo reçu', 'ok');
     }
     if (track.kind === 'audio') {
-        els.audioEl.srcObject = streams[0];
         log('Flux audio reçu', 'ok');
         els.audioBar.classList.add('active');
     }
@@ -979,6 +982,7 @@ function cleanupPeer() {
     state.pc = null;
   }
   state.connected = false;
+  state.remoteStream = null;
   els.videoEl.srcObject = null;
   setVideoVisible(false);
   els.audioBar.classList.remove('active');
