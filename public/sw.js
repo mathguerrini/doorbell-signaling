@@ -18,7 +18,7 @@ self.addEventListener('push', (event) => {
     data: { room: data.room },
     vibrate: [500, 200, 500, 200, 500],
     
-    // ─── ICI ON AJOUTE LES BOUTONS NATIFS POUR IPHONE ───
+    // ─── ICI ON AJOUTE LES BOUTONS NATIFS ───
     actions: [
       { action: 'accept', title: '📞 Répondre' },
       { action: 'deny', title: '❌ Refuser' }
