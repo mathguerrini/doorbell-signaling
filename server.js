@@ -42,6 +42,12 @@ if (VAPID_KEYS.publicKey !== 'BMciinMRoHGsc8D2pJOZQxpyB_9Z4oDTKPz6Aec9xEiqay_7-S
 // Stockage temporaire des abonnements de téléphones (en mémoire)
 const pushSubscriptions = []; // Contiendra des objets { apt: "Apt 1A", sub: {...} }
 const pendingRings = {}; // { "Apt 1A": { room, apt, ts } } — appels en cours, pour les résidents qui ouvrent l'app après la notif
+// Residents/nom/adresse pousses par le visiophone (voir handler "building_info"
+// et my_signaling_send_building_info() cote ESP32). En memoire uniquement, comme
+// le reste ci-dessus : le disque Render est de toute facon efface a chaque
+// deploiement, donc pas la peine de persister — le visiophone renvoie ces infos
+// a chaque (re)connexion WebSocket.
+let buildingInfo = { residence_name: '', building_address: '', apartments: [] };
 // ─── Config ──────────────────────────────────────────────────────────────────
 
 const CONFIG = {
@@ -216,6 +222,18 @@ const handlers = {
       log.info(`Ring en attente (re)demandé par ${msg.apt} (room ${pending.room})`);
       send(ws, { type: 'ring', apt: pending.apt, room: pending.room });
     }
+  },
+
+  // Le visiophone pousse residents/nom/adresse a la connexion et apres chaque
+  // sauvegarde du panneau admin (voir my_signaling_send_building_info cote ESP32).
+  // Sert de source pour GET /api/building, consomme par l'app residente.
+  building_info(ws, msg) {
+    buildingInfo = {
+      residence_name:   typeof msg.residence_name   === 'string' ? msg.residence_name   : buildingInfo.residence_name,
+      building_address: typeof msg.building_address === 'string' ? msg.building_address : buildingInfo.building_address,
+      apartments:       Array.isArray(msg.apartments) ? msg.apartments : buildingInfo.apartments,
+    };
+    log.info(`Infos residence mises a jour (${buildingInfo.apartments.length} appartements) depuis ${ws._id}`);
   },
 };
 
@@ -1157,6 +1175,13 @@ const httpServer = http.createServer((req, res) => {
   if (pathname === '/api/vapid') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ publicKey: VAPID_KEYS.publicKey }));
+  }
+
+  // Residents/nom de residence/adresse pousses par le visiophone (voir handler
+  // WS "building_info") — consomme par l'app residente au chargement.
+  if (pathname === '/api/building') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify(buildingInfo));
   }
 
   // 2. Recevoir et sauvegarder la clé d'abonnement (le token de push) de l'iPhone

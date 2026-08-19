@@ -1,8 +1,27 @@
 (function(){
   'use strict';
 
-  // Liste des appartements (doit correspondre a display_ui.c cote ESP32)
+  // Liste des appartements + nom/adresse de la residence : valeurs de repli,
+  // utilisees tant que /api/building n'a pas repondu (ou si ca echoue). Le
+  // visiophone pousse les vraies valeurs au serveur a chaque connexion et
+  // apres chaque sauvegarde du panneau admin (voir my_signaling.c cote ESP32
+  // et le handler WS "building_info" dans server.js) — plus besoin de les
+  // dupliquer ici a la main.
   var APARTMENTS = ['Apt 1A','Apt 1B','Apt 2A','Apt 2B','Apt 3A','Apt 3B','Apt 4A','Apt 4B'];
+  fetch('/api/building')
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (Array.isArray(d.apartments) && d.apartments.length) APARTMENTS = d.apartments;
+      if (d.residence_name) {
+        var h1 = document.getElementById('residence-name');
+        if (h1) h1.textContent = d.residence_name;
+      }
+      if (d.building_address) {
+        var addr = document.getElementById('residence-address');
+        if (addr) addr.textContent = d.building_address;
+      }
+    })
+    .catch(function () { /* on garde les valeurs de repli affichees dans le HTML */ });
 
   // ─── Etat ───
   var myApt = localStorage.getItem('myApt') || null;
