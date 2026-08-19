@@ -39,8 +39,8 @@ self.addEventListener('notificationclick', (event) => {
     return;
   }
 
-  // Dans TOUS les autres cas (tap sur le corps OU bouton Répondre) :
-  // on ouvre/ramène l'app, et on lui demande d'afficher le pop-up.
+  // Dans TOUS les autres cas :
+  // on ouvre/ramène l'app, et on lui demande d'afficher le pop-up. 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
       // App déjà ouverte (premier plan ou arrière-plan) → focus + signal "afficher le ring"
