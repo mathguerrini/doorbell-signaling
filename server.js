@@ -394,7 +394,7 @@ const HTML_PAGE = `<!DOCTYPE html>
     height: 100%;
     object-fit: cover;
     display: block;
-    transform: scale(1.08);
+    transform: scale(1.16);
     transform-origin: center;
   }
   .video-overlay {
