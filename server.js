@@ -380,18 +380,22 @@ const HTML_PAGE = `<!DOCTYPE html>
     align-items: center;
     justify-content: center;
     min-height: 360px;
+    overflow: hidden; /* necessaire pour rogner proprement le zoom ci-dessous */
   }
   #remote-video {
-    /* Remplit tout le panneau (comme a l'origine) : object-fit: cover
-       agrandit la video source (desormais 320x320 cote appareil, contrainte
-       memoire materielle) pour couvrir tout le cadre, quitte a rogner les
-       bords -- avantage secondaire : le leger bruit residuel en bord
-       droit/bas de l'image source (voir settings.h cote firmware) tombe
-       dans la zone rognee, donc invisible ici. */
+    /* Remplit tout le panneau : object-fit: cover agrandit la video source
+       (320x320 cote appareil, contrainte memoire materielle) pour couvrir
+       tout le cadre, quitte a rogner les bords. Zoom leger supplementaire
+       (scale) pour pousser hors-cadre le reste de bruit residuel en bord
+       droit/bas de l'image source (voir settings.h cote firmware) que le
+       rognage de "cover" seul ne suffisait pas toujours a masquer selon les
+       proportions du panneau. */
     width: 100%;
     height: 100%;
     object-fit: cover;
     display: block;
+    transform: scale(1.08);
+    transform-origin: center;
   }
   .video-overlay {
     position: absolute;
