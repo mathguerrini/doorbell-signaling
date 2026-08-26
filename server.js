@@ -382,9 +382,17 @@ const HTML_PAGE = `<!DOCTYPE html>
     min-height: 360px;
   }
   #remote-video {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
+    /* Video source reduite (384x384, cote appareil -- contrainte memoire
+       materielle) : ne plus etirer sur tout le panneau (object-fit: cover
+       agrandissait trop, rendu pixelise/blocs visible). Plafonne la taille
+       affichee pour limiter l'agrandissement et garder une image nette,
+       centree dans le panneau (fond sombre du panneau visible autour,
+       pas de bandes "vides"). */
+    max-width: min(100%, 480px);
+    max-height: min(100%, 480px);
+    width: auto;
+    height: auto;
+    object-fit: contain;
     display: block;
   }
   .video-overlay {
