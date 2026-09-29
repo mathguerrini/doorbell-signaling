@@ -29,7 +29,8 @@ const fs     = require('fs');
 const path   = require('path');
 const { WebSocketServer, WebSocket } = require('ws');
 const webpush = require('web-push');
-const admin   = require('firebase-admin');
+const { initializeApp, cert } = require('firebase-admin/app');
+const { getMessaging }        = require('firebase-admin/messaging');
 
 // ─── Firebase Cloud Messaging (app Android) ─────────────────────────────────
 // Cle de compte de service Firebase dans la variable d'environnement
@@ -51,7 +52,7 @@ function loadServiceAccount() {
 try {
   const sa = loadServiceAccount();
   if (sa) {
-    admin.initializeApp({ credential: admin.credential.cert(sa) });
+    initializeApp({ credential: cert(sa) });
     fcmEnabled = true;
     console.log(`[FCM] Actif (projet ${sa.project_id})`);
   } else {
@@ -122,7 +123,7 @@ function sendFcmToApt(apt, data) {
   for (const [k, v] of Object.entries(data)) payload[k] = v == null ? '' : String(v);
   for (const [token, tokenApt] of fcmTokens) {
     if (tokenApt !== apt) continue;
-    admin.messaging().send({ token, data: payload, android: { priority: 'high', ttl: 30000 } })
+       getMessaging().send({ token, data: payload, android: { priority: 'high', ttl: 30000 } })
       .then(() => log.info(`[FCM] "${payload.type}" envoye a ${apt}`))
       .catch(err => {
         log.warn(`[FCM] Echec vers ${apt} : ${err.code || err.message}`);
