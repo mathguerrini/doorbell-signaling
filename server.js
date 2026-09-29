@@ -35,15 +35,30 @@ const admin   = require('firebase-admin');
 // Cle de compte de service Firebase dans la variable d'environnement
 // FIREBASE_SERVICE_ACCOUNT (contenu JSON complet). Sans elle, FCM est desactive.
 let fcmEnabled = false;
-if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-  try {
-    admin.initializeApp({
-      credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)),
-    });
+
+// Accepte la cle en base64 (recommande) ou en JSON brut
+function loadServiceAccount() {
+  const b64 = process.env.FIREBASE_SERVICE_ACCOUNT_B64;
+  const raw = b64 ? Buffer.from(b64, 'base64').toString('utf8')
+                  : process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (!raw) return null;
+  const sa = JSON.parse(raw);
+  // Repare les \n de la cle privee s'ils ont ete doubles au copier-coller
+  if (sa.private_key) sa.private_key = sa.private_key.replace(/\\n/g, '\n');
+  return sa;
+}
+
+try {
+  const sa = loadServiceAccount();
+  if (sa) {
+    admin.initializeApp({ credential: admin.credential.cert(sa) });
     fcmEnabled = true;
-  } catch (e) {
-    console.error('[FCM] Initialisation impossible :', e.message);
+    console.log(`[FCM] Actif (projet ${sa.project_id})`);
+  } else {
+    console.log('[FCM] Aucune cle configuree : FCM desactive');
   }
+} catch (e) {
+  console.error('[FCM] Initialisation impossible :', e.message);
 }
 // token FCM -> appartement (en memoire, comme les abonnements web-push)
 const fcmTokens = new Map();
