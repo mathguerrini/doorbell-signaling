@@ -16,6 +16,12 @@
  *   candidate { type, candidate }
  *   cmd       { type, cmd: "ring|open_door|door_opened|accept_call|deny_call" }
  *   ping      { type }
+ *   remote_open { type, apt }            (app -> serveur -> visiophone : OPEN_DOOR hors appel)
+ *   ring_cancel { type, apt, room }      (serveur -> apps : decroche sur un autre telephone)
+ *
+ * HTTP ajoutes pour l'app Android :
+ *   POST /api/fcm-token { token, apt }   enregistrement FCM
+ *   POST /api/ring-deny { apt, room }    refus depuis la notification
  */
 
 const http   = require('http');
@@ -23,6 +29,24 @@ const fs     = require('fs');
 const path   = require('path');
 const { WebSocketServer, WebSocket } = require('ws');
 const webpush = require('web-push');
+const admin   = require('firebase-admin');
+
+// ─── Firebase Cloud Messaging (app Android) ─────────────────────────────────
+// Cle de compte de service Firebase dans la variable d'environnement
+// FIREBASE_SERVICE_ACCOUNT (contenu JSON complet). Sans elle, FCM est desactive.
+let fcmEnabled = false;
+if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+  try {
+    admin.initializeApp({
+      credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)),
+    });
+    fcmEnabled = true;
+  } catch (e) {
+    console.error('[FCM] Initialisation impossible :', e.message);
+  }
+}
+// token FCM -> appartement (en memoire, comme les abonnements web-push)
+const fcmTokens = new Map();
 
 // Configuration VAPID (Mets ici les clés générées à l'étape 1)
 const VAPID_KEYS = {
@@ -72,6 +96,51 @@ const log = {
   warn(...a) { this._print('warn', ...a); },
   error(...a){ this._print('error',...a); },
 };
+
+// ─── FCM ─────────────────────────────────────────────────────────────────────
+
+// Envoie un message "data" FCM a tous les telephones Android d'un appartement.
+// Les valeurs doivent etre des chaines. Priorite haute : reveille l'app meme fermee.
+function sendFcmToApt(apt, data) {
+  if (!fcmEnabled) return;
+  const payload = {};
+  for (const [k, v] of Object.entries(data)) payload[k] = v == null ? '' : String(v);
+  for (const [token, tokenApt] of fcmTokens) {
+    if (tokenApt !== apt) continue;
+    admin.messaging().send({ token, data: payload, android: { priority: 'high', ttl: 30000 } })
+      .then(() => log.info(`[FCM] "${payload.type}" envoye a ${apt}`))
+      .catch(err => {
+        log.warn(`[FCM] Echec vers ${apt} : ${err.code || err.message}`);
+        if (err.code === 'messaging/registration-token-not-registered' ||
+            err.code === 'messaging/invalid-registration-token') {
+          fcmTokens.delete(token);
+          log.info('[FCM] Token expire supprime.');
+        }
+      });
+  }
+}
+
+// Refus d'un appel (depuis le WebSocket ou le bouton "Refuser" de la notification Android)
+function denyRing(apt, room, fromWs) {
+  log.info(`REFUS d'appel pour "${apt}"`);
+  delete pendingRings[apt];
+  wss.clients.forEach(c => {
+    if (c.readyState === WebSocket.OPEN && c !== fromWs) {
+      send(c, { type: 'ring_deny', apt, room });
+    }
+  });
+  sendFcmToApt(apt, { type: 'cancel', apt });
+}
+
+// Lecture d'un corps JSON de requete HTTP
+function readJson(req) {
+  return new Promise((resolve, reject) => {
+    let body = ''; 
+    req.on('data', chunk => { body += chunk; if (body.length > 100000) req.destroy(); });
+    req.on('end', () => { try { resolve(JSON.parse(body || '{}')); } catch (e) { reject(e); } });
+    req.on('error', reject);
+  });
+}
 
 // ─── État global ─────────────────────────────────────────────────────────────
 
@@ -135,6 +204,19 @@ const handlers = {
     room.add(ws);
     ws._roomId = roomId;
     log.info(`[room:${roomId}] ${ws._id} rejoint (${room.size}/2)`);
+    // Un resident vient de decrocher : on arrete la sonnerie sur ses autres telephones
+    if (!ws._isDoorbell) {
+      for (const [apt, p] of Object.entries(pendingRings)) {
+        if (p.room !== roomId) continue;
+        delete pendingRings[apt];
+        wss.clients.forEach(c => {
+          if (c !== ws && c._apt === apt && c.readyState === WebSocket.OPEN) {
+            send(c, { type: 'ring_cancel', apt, room: roomId });
+          }
+        });
+        sendFcmToApt(apt, { type: 'cancel', apt });
+      }
+    }
     send(ws, { type: 'joined', room: roomId, peers: room.size });
     const peer = getPeer(ws);
     if (peer) send(peer, { type: 'peer_joined' });
@@ -159,6 +241,7 @@ const handlers = {
   // L'ESP32 signale un appel vers un appartement : on diffuse aux WS + en Push local
   ring(ws, msg)   {
     log.info(`RING vers "${msg.apt}" (room video: ${msg.room})`);
+    ws._isDoorbell = true; // seul le visiophone envoie des "ring"
     
     // Mémoriser l'appel en cours (pour un résident qui ouvre l'app via la notif)
     pendingRings[msg.apt] = { room: msg.room, apt: msg.apt, ts: Date.now() };
@@ -176,6 +259,9 @@ const handlers = {
       body: `Quelqu'un sonne au ${msg.apt} !`,
       room: msg.room // On transmet la room pour que l'app se connecte au décrochage
     });
+
+    // Notification FCM pour l'app Android (meme fermee)
+    sendFcmToApt(msg.apt, { type: 'ring', apt: msg.apt, room: msg.room });
 
     pushSubscriptions.forEach(entry => {
       // On cible uniquement les smartphones configurés pour cet appartement
@@ -196,13 +282,7 @@ const handlers = {
   },
   // Refus d'appel : broadcast a tous (la carte le captera pour revenir a idle)
   ring_deny(ws, msg) {
-    log.info(`REFUS d'appel pour "${msg.apt}"`);
-    delete pendingRings[msg.apt];   // l'appel n'est plus en attente
-    wss.clients.forEach(c => {
-      if (c.readyState === WebSocket.OPEN && c !== ws) {
-        send(c, { type: 'ring_deny', apt: msg.apt, room: msg.room });
-      }
-    });
+    denyRing(msg.apt, msg.room, ws);
   },
   // Une app déclare quel appartement elle représente (pour info/log)
   register(ws, msg) {
@@ -228,12 +308,22 @@ const handlers = {
   // sauvegarde du panneau admin (voir my_signaling_send_building_info cote ESP32).
   // Sert de source pour GET /api/building, consomme par l'app residente.
   building_info(ws, msg) {
+    ws._isDoorbell = true; // seul le visiophone envoie building_info
     buildingInfo = {
       residence_name:   typeof msg.residence_name   === 'string' ? msg.residence_name   : buildingInfo.residence_name,
       building_address: typeof msg.building_address === 'string' ? msg.building_address : buildingInfo.building_address,
       apartments:       Array.isArray(msg.apartments) ? msg.apartments : buildingInfo.apartments,
     };
     log.info(`Infos residence mises a jour (${buildingInfo.apartments.length} appartements) depuis ${ws._id}`);
+  },
+
+  // Bouton "Deverrouiller" de l'accueil (hors appel) : le socket de l'app n'est dans
+  // aucune room, donc on transmet OPEN_DOOR directement au socket du visiophone.
+  remote_open(ws, msg) {
+    const door = [...wss.clients].find(c => c._isDoorbell && c.readyState === WebSocket.OPEN);
+    if (!door) return send(ws, { type: 'error', message: 'visiophone hors ligne' });
+    log.info(`Ouverture a distance demandee par ${msg.apt || ws._id}`);
+    send(door, { type: 'cmd', cmd: 'OPEN_DOOR' });
   },
 };
 
@@ -1221,6 +1311,31 @@ const httpServer = http.createServer((req, res) => {
     });
     return;
   }
+  // App Android : enregistrement du token FCM pour un appartement
+  if (req.method === 'POST' && pathname === '/api/fcm-token') {
+    readJson(req).then(d => {
+      if (typeof d.token !== 'string' || typeof d.apt !== 'string') {
+        res.writeHead(400); return res.end('Bad Request');
+      }
+      fcmTokens.set(d.token, d.apt);
+      log.info(`[FCM] Token enregistre pour ${d.apt} (${fcmTokens.size} au total)`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'ok', fcm: fcmEnabled }));
+    }).catch(() => { res.writeHead(400); res.end('Bad Request'); });
+    return;
+  }
+
+  // App Android : bouton "Refuser" de la notification (sans WebSocket ouvert)
+  if (req.method === 'POST' && pathname === '/api/ring-deny') {
+    readJson(req).then(d => {
+      if (typeof d.apt !== 'string') { res.writeHead(400); return res.end('Bad Request'); }
+      denyRing(d.apt, d.room || null, null);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'ok' }));
+    }).catch(() => { res.writeHead(400); res.end('Bad Request'); });
+    return;
+  }
+
   // Ancienne page WebRTC (utilisée dans l'iframe Caméra)
   if (pathname === '/legacy') {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });

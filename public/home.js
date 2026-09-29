@@ -78,7 +78,7 @@
   function onRing(msg){
     if (!myApt || msg.apt !== myApt) return;
 
-    // 🛡️ VERROU : Si l'iPhone est déjà calé sur la caméra de cette room, on ignore le signal WebSocket
+    //  VERROU : Si l'iPhone est déjà calé sur la caméra de cette room, on ignore le signal WebSocket
     if (activeCallRoom === msg.room) return;
 
     pendingRoom = msg.room || null;
@@ -222,7 +222,7 @@
     });
   }
 
-  // ─── 📡 ENREGISTREMENT ET DIAGNOSTIC DES NOTIFICATIONS PUSH ───
+  // ───  ENREGISTREMENT ET DIAGNOSTIC DES NOTIFICATIONS PUSH ───
   function registerPushNotification() {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
       alert(" Erreur : Les notifications ne sont pas supportées. Lancez l'application depuis l'ÉCRAN D'ACCUEIL de votre téléphone (PWA) !");
@@ -294,7 +294,7 @@
     });
   }
 
-  // ─── ⚡ RÉCEPTION DU SIGNAL DE DÉCROCHAGE (SPÉCIAL IPHONE) ───
+  // ───  RÉCEPTION DU SIGNAL DE DÉCROCHAGE (SPÉCIAL IPHONE) ───
 
   // Cas n°1 : L'application était en tâche de fond (Capture du postMessage du Service Worker)
   if ('serviceWorker' in navigator) {
