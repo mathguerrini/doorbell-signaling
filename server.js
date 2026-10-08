@@ -215,6 +215,31 @@ const handlers = {
         log.info(`[room:${roomId}] connexion morte retiree au join`);
       }
     }
+    // Le visiophone (re)joint sa room : il vient de demarrer ou de se reconnecter,
+    // donc tout ce qui s'y trouve encore date d'avant (ancienne connexion du
+    // visiophone restee ouverte apres un redemarrage/reflashage, ou resident d'un
+    // appel coupe). Sans ce menage la room restait "pleine" jusqu'au redemarrage
+    // du serveur.
+    if (msg.role === 'doorbell') {
+      ws._isDoorbell = true;
+      ws._doorRoom = roomId;
+      for (const p of [...room]) {
+        room.delete(p);
+        p._roomId = null;
+        if (!p._isDoorbell) {
+          send(p, { type: 'peer_left' });
+          log.info(`[room:${roomId}] ${p._id} retire (visiophone reconnecte)`);
+        }
+      }
+      // Ancienne connexion du meme visiophone, qu'elle soit encore dans la room ou non
+      wss.clients.forEach(c => {
+        if (c !== ws && c._doorRoom === roomId) {
+          log.warn(`[room:${roomId}] ancienne connexion visiophone ${c._id} fermee`);
+          c._doorRoom = null;
+          c.terminate();
+        }
+      });
+    }
     if (room.size >= CONFIG.MAX_PEERS_PER_ROOM)
       return send(ws, { type: 'full', room: roomId });
     room.add(ws);

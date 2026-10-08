@@ -8,6 +8,18 @@ Serveur Node.js à trois rôles :
 
 Pour la vue d'ensemble du système (firmware, architecture globale), voir le [README à la racine du dépôt](../../README.md).
 
+## Versions
+
+| Élément | Version | Rôle |
+|---------|---------|------|
+| Serveur (`package.json`) | 1.0.0 | |
+| Node.js | ≥ 22 | exigé par `firebase-admin` 14 |
+| `ws` | 8.20.1 (`^8.18.0`) | WebSocket de signalisation |
+| `web-push` | 3.6.7 (`^3.6.7`) | notifications Web Push (VAPID) |
+| `firebase-admin` | 14.5.0 (`^14.5.0`) | notifications FCM vers l'app Android |
+
+Les versions exactes installées sont figées dans [package-lock.json](package-lock.json).
+
 ## Installation
 
 ```bash
